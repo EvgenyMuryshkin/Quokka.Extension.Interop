@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    <Version>1.0.0.2</Version>
+    <Authors>Evgeny Muryshkin</Authors>
+    <Company>Quokka Robotics</Company>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/EvgenyMuryshkin/Quokka.Extension.Interop</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/EvgenyMuryshkin/Quokka.Extension.Interop</RepositoryUrl>
+    <RepositoryType>Public</RepositoryType>
+    <Description>VS2019 extension interop for Quokka Toolkit</Description>
+  </PropertyGroup>
+</Project>
