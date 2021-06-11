@@ -41,7 +41,7 @@ namespace Quokka.Extension.Interop
             var invokeParts = args[0].Split('.');
             if (invokeParts.Length != 2)
             {
-                Console.WriteLine($"Extension method should be in format 'Class.Method'. Provided values was '{args[0]}'");
+                Console.WriteLine($"Extension method should be in format 'Class.Method'. Provided value was '{args[0]}'");
                 return 1;
             }
 
@@ -63,7 +63,7 @@ namespace Quokka.Extension.Interop
             if (!extensionMethods.TryGetValue(invokeParts[1], out var extensionMethod))
             {
                 Console.WriteLine($"Extension method was not found on class '{extensionClass.Name}': {invokeParts[1]}");
-                Console.WriteLine($"Extension method should be static method without parameter");
+                Console.WriteLine($"Extension method should be static method without parameters");
 
                 foreach (var m in extensionMethods.Keys)
                 {
@@ -102,6 +102,34 @@ namespace Quokka.Extension.Interop
             }
         }
 
+        static Exception MostInnerException(Exception ex)
+        {
+            if (ex == null)
+                return null;
+
+            return MostInnerException(ex.InnerException) ?? ex;
+        }
+
+        static void TraceException(Exception ex)
+        {
+            switch (ex)
+            {
+                case TargetInvocationException tie:
+                {
+                    TraceException(tie.InnerException);
+                }   break;
+                default:
+                {
+                    var inner = MostInnerException(ex);
+                    Console.WriteLine($"Extension method invocation failed");
+                    Console.WriteLine($"{inner.GetType().Name}");
+                    Console.WriteLine($"{inner.Message}");
+                    Console.WriteLine($"{inner.StackTrace}");
+                }
+                break;
+            }
+        }
+
         public static async Task<int> Main(string[] args)
         {
             try
@@ -110,9 +138,7 @@ namespace Quokka.Extension.Interop
             }
             catch(Exception ex)
             {
-                Console.WriteLine("Extension method invocation failed");
-                Console.WriteLine($"{ex.Message}");
-                Console.WriteLine($"{ex.StackTrace}");
+                TraceException(ex);
                 return 1;
             }
         }

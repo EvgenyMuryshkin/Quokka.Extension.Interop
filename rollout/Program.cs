@@ -11,7 +11,8 @@ namespace rollout
         {
             var solutions = new[]
             {
-                "Quokka.RTL",
+                "qusoc",
+                "Quokka.Extension.VS2019",
             };
 
             RolloutProcess.Run(new RolloutConfig()
