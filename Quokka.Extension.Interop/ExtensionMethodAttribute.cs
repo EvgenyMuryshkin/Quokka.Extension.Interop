@@ -17,5 +17,11 @@ namespace Quokka.Extension.Interop
         {
             return (_icon, _onToolbar, _title);
         }
+
+        public ExtensionMethodAttribute(TopLevelIcon icon, string title = null)
+        {
+            _icon = icon;
+            _title = title;
+        }
     }
 }

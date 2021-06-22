@@ -3,6 +3,7 @@ using Newtonsoft.Json;
 using SkiaSharp;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
@@ -214,6 +215,21 @@ namespace Quokka.Extension.Interop.CodeGen
                     Directory.CreateDirectory(collectionPath);
                 }
 
+                var proc = Process.Start(new ProcessStartInfo()
+                {
+                    FileName = "python",
+                    Arguments = @"C:\tmp\toolbar\conv.py",
+                    UseShellExecute = false,
+                    WorkingDirectory = collectionPath,
+                    CreateNoWindow = true,
+                });
+
+                proc.WaitForExit();
+
+                if (proc.ExitCode != 0)
+                    Debugger.Break();
+
+                /*
                 foreach (var item in collection.Value)
                 {
                     var svgPath = $"{collectionPath}/{item.Id}.svg";
@@ -221,6 +237,7 @@ namespace Quokka.Extension.Interop.CodeGen
                     ConvertToPNG(svgPath);
                     counter++;
                 }
+                */
             }
         }
 
@@ -339,18 +356,18 @@ namespace Quokka.Extension.Interop.CodeGen
                 var collectionName = CollectionName(collection.Key);
                 var collectionPath = System.IO.Path.Combine(IconsLocation, collectionName);
 
-                var remainng = collection.Value;
+                var remaining = collection.Value;
                 var partIndex = 0;
-                while(remainng.Any())
+                while(remaining.Any())
                 {
-                    var iconsToExport = remainng.Take(maxPerCollection).ToList();
-                    remainng = remainng.Skip(maxPerCollection).ToList();
+                    var iconsToExport = remaining.Take(maxPerCollection).ToList();
+                    remaining = remaining.Skip(maxPerCollection).ToList();
 
                     var combined = new Bitmap(16 * iconsToExport.Count, 16);
 
                     for (var idx = 0; idx < iconsToExport.Count; idx++)
                     {
-                        var item = collection.Value[idx];
+                        var item = iconsToExport[idx];
                         var pngPath = $"{collectionPath}/{item.Id}.png";
                         var content = File.ReadAllBytes(pngPath);
 
@@ -377,6 +394,7 @@ namespace Quokka.Extension.Interop.CodeGen
         void GenerateSymbols()
         {
             var vsctPath = @"C:\code\Quokka.Extension.VS2019\Quokka.Extension.VS2019\symbols.vsct";
+            var csPath = @"C:\code\Quokka.Extension.VS2019\Quokka.Extension.VS2019\DynamicCommandsSet.cs";
             var xDoc = XDocument.Load(vsctPath);
             var allElements = xDoc.Root.RecursiveElements().ToList();
             var symbols = allElements.Single(e => e.Name.LocalName == "Symbols");
@@ -427,7 +445,54 @@ namespace Quokka.Extension.Interop.CodeGen
                 }
             }
 
+
+            var dynamicCommandIds = "124f22e4-53e8-405c-b1d7-d43e63d7e24c";
+            var xCommands = symbols.Elements().FirstOrDefault(s => s.Attribute("name").Value == "dynamicCommandIds");
+
+            if (xCommands == null)
+            {
+                xCommands = new XElement(
+                    makeName("GuidSymbol"),
+                    new XAttribute("name", $"dynamicCommandIds"),
+                    new XAttribute("value", $"{{{dynamicCommandIds}}}")
+                );
+
+                symbols.Add(xCommands);
+            }
+            else
+            {
+                xCommands.RemoveNodes();
+            }
+
+            var codeBuilder = new StringBuilder();
+            codeBuilder.AppendLine("// generated file;");
+            codeBuilder.AppendLine("using System;");
+            codeBuilder.AppendLine("namespace Quokka.Extension.VS2019");
+            codeBuilder.AppendLine("{");
+            codeBuilder.AppendLine($"\tpublic static class guidDynamicCommandsSet");
+            codeBuilder.AppendLine("\t{");
+            codeBuilder.AppendLine($"\t\tpublic static readonly Guid SetId = Guid.Parse(\"{dynamicCommandIds}\");");
+            var id = 1;
+
+            foreach (var collection in allIcons)
+            {
+                var collectionName = CollectionName(collection.Key);
+                foreach (var icon in collection.Value)
+                {
+                    xCommands.Add(new XElement(
+                        makeName("IDSymbol"),
+                        new XAttribute("name", $"{collectionName}_{icon.Id}"),
+                        new XAttribute("value", $"{id * 100}")
+                    ));
+                    codeBuilder.AppendLine($"\t\tpublic const uint {collectionName}_{icon.Id} = {id * 100};");
+                    id++;
+                }
+            }
+            codeBuilder.AppendLine("\t}");
+            codeBuilder.AppendLine("}");
+
             xDoc.Save(vsctPath);
+            File.WriteAllText(csPath, codeBuilder.ToString());
         }
 
         void GenerateBitmaps()
@@ -479,10 +544,74 @@ namespace Quokka.Extension.Interop.CodeGen
             xDoc.Save(vsctPath);
         }
 
+        void GenerateButtons()
+        {
+            var vsctPath = @"C:\code\Quokka.Extension.VS2019\Quokka.Extension.VS2019\buttons.vsct";
+            var xDoc = XDocument.Load(vsctPath);
+            var allElements = xDoc.Root.RecursiveElements().ToList();
+            var buttons = allElements.Single(e => e.Name.LocalName == "Buttons");
+            buttons.RemoveNodes();
+
+            Func<string, XName> makeName = (name) => XName.Get(name, xDoc.Root.GetDefaultNamespace().NamespaceName);
+
+            var priority = 0x2000;
+            foreach (var collection in allIcons)
+            {
+                var remainng = collection.Value;//.Take(10);
+                var partIndex = 0;
+                while (remainng.Any())
+                {
+                    var startIndex = partIndex * maxPerCollection;
+
+                    var iconsToExport = remainng.Take(maxPerCollection).ToList();
+                    remainng = remainng.Skip(maxPerCollection).ToList();
+
+                    var collectionName = $"{CollectionName(collection.Key)}_{startIndex}_{startIndex + maxPerCollection - 1}";
+                    var guidColection = $"guid_{collectionName}";
+
+                    foreach (var icon in iconsToExport)
+                    {
+                        XElement xBitmap = new XElement(
+                                makeName("Button"),
+                                new XAttribute("guid", $"dynamicCommandIds"),
+                                new XAttribute("id", $"{CollectionName(collection.Key)}_{icon.Id}"),
+                                new XAttribute("priority", $"{priority}"),
+                                new XAttribute("type", $"Button"),
+                                new XElement(
+                                    makeName("Parent"),
+                                    new XAttribute("guid", $"guidQuokkaExtensionVS2019PackageCmdSet"),
+                                    new XAttribute("id", $"DynamicMenuControllerGroup")
+                                ),
+                                new XElement(
+                                    makeName("Icon"),
+                                    new XAttribute("guid", guidColection),
+                                    new XAttribute("id", $"{icon.Id}")
+                                ),
+                                new XElement(makeName("CommandFlag"), "DynamicItemStart"),
+                                new XElement(makeName("CommandFlag"), "DynamicVisibility"),
+                                new XElement(makeName("CommandFlag"), "DefaultInvisible"),
+                                new XElement(makeName("CommandFlag"), "TextChanges"),
+                                new XElement(makeName("Strings"),
+                                    new XElement(makeName("ButtonText"), icon.Id)
+                                )
+                            );
+
+                        buttons.Add(xBitmap);
+                        priority++;
+                    }
+
+                    partIndex++;
+                }
+            }
+
+            xDoc.Save(vsctPath);
+        }
+
         void GenerateVSCT()
         {
             GenerateSymbols();
             GenerateBitmaps();
+            GenerateButtons();
         }
 
         void Test()
@@ -494,13 +623,14 @@ namespace Quokka.Extension.Interop.CodeGen
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
             //DownloadCollections();
+
             //GeneratePNG();
             //StoreEmptyPNG();
-            RemoveEmptyPNG();
+
+            //RemoveEmptyPNG();
             GenerateCode();
-            //GenerateInteropResources();
-            //GenerateResources();
-            //GenerateVSCT();
+            GenerateResources();
+            GenerateVSCT();
 
             view.Content = "Done";
         }
