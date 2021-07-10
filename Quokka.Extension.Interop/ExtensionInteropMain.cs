@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -17,8 +18,6 @@ namespace Quokka.Extension.Interop
 
         public static async Task<int> Invoke(string[] args)
         {
-            Console.WriteLine($"InteropMain called: {string.Join(" ", args)}");
-
             if (args.Length == 0)
             {
                 Console.WriteLine($"Extension method was not specified");
@@ -132,8 +131,12 @@ namespace Quokka.Extension.Interop
 
         public static async Task<int> Main(string[] args)
         {
+            var sw = new Stopwatch();
+            sw.Start();
+
             try
             {
+                Console.WriteLine($"InteropMain called: {string.Join(" ", args)}");
                 return await Invoke(args);
             }
             catch(Exception ex)
@@ -141,7 +144,10 @@ namespace Quokka.Extension.Interop
                 TraceException(ex);
                 return 1;
             }
+            finally
+            {
+                Console.WriteLine($"InteropMain completed in {sw.ElapsedMilliseconds} ms: {string.Join(" ", args)}");
+            }
         }
-
     }
 }
