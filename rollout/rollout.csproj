@@ -5,6 +5,6 @@
     <TargetFramework>netcoreapp3.1</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="Quokka.Rollout" Version="1.0.4.44" />
+    <PackageReference Include="Quokka.Rollout" Version="1.0.5.45" />
   </ItemGroup>
 </Project>

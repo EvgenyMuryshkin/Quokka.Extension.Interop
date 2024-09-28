@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -8,7 +9,7 @@ namespace Quokka.Extension.Interop
 {
     public class ExtensionInteropMain
     {
-        public static void PrintUsage()
+        public virtual void PrintUsage()
         {
             Console.WriteLine($"Extension class should be marked with [ExtensionClass] attribute");
             Console.WriteLine($"Extension method should be marked with [ExtensionMethod] attribute");
@@ -16,7 +17,7 @@ namespace Quokka.Extension.Interop
             Console.WriteLine($"Extension method should return void, int, Task, Task<int>");
         }
 
-        public static async Task<int> Invoke(string[] args)
+        public virtual async Task<int> Invoke(string[] args)
         {
             if (args.Length == 0)
             {
@@ -101,7 +102,7 @@ namespace Quokka.Extension.Interop
             }
         }
 
-        static Exception MostInnerException(Exception ex)
+        protected virtual Exception MostInnerException(Exception ex)
         {
             if (ex == null)
                 return null;
@@ -109,27 +110,70 @@ namespace Quokka.Extension.Interop
             return MostInnerException(ex.InnerException) ?? ex;
         }
 
-        static void TraceException(Exception ex)
+        protected virtual void ReportExceptionToConsole(Exception ex)
         {
+            Console.WriteLine($"".PadRight(20, '='));
+            Console.WriteLine($"{ex.GetType().Name}");
+            Console.WriteLine($"{ex.Message}");
+            Console.WriteLine($"{ex.StackTrace}");
+        }
+
+        protected virtual List<Exception> UnrollExceptions(Exception ex)
+        {
+            var result = new List<Exception>();
+            if (ex == null)
+                return result;
+
             switch (ex)
             {
                 case TargetInvocationException tie:
-                {
-                    TraceException(tie.InnerException);
-                }   break;
+                    {
+                        result.AddRange(UnrollExceptions(tie.InnerException));
+                    }
+                    break;
+                case AggregateException ae:
+                    {
+                        result.AddRange(UnrollExceptions(ae.InnerException));
+
+                        if (ae.InnerExceptions != null)
+                        {
+                            result.AddRange(ae.InnerExceptions.SelectMany(e => UnrollExceptions(e)));
+                        }
+                    }
+                    break;
                 default:
+                    {
+                        result.Add(ex);
+                        result.AddRange(UnrollExceptions(ex.InnerException));
+                    }
+                    break;
+            }
+
+            return result;
+        }
+
+        protected virtual void TraceException(Exception ex)
+        {
+            var unrolled = UnrollExceptions(ex);
+
+            Console.WriteLine($"Extension method invocation failed");
+
+            if (unrolled.Any())
+            {
+                Console.WriteLine($"Will display {unrolled.Count} exceptions");
+
+                foreach (var exception in unrolled)
                 {
-                    var inner = MostInnerException(ex);
-                    Console.WriteLine($"Extension method invocation failed");
-                    Console.WriteLine($"{inner.GetType().Name}");
-                    Console.WriteLine($"{inner.Message}");
-                    Console.WriteLine($"{inner.StackTrace}");
+                    ReportExceptionToConsole(exception);
                 }
-                break;
+            }
+            else
+            {
+                Console.WriteLine($"Exception information is not available");
             }
         }
 
-        public static async Task<int> Main(string[] args)
+        public virtual async Task<int> Run(string[] args)
         {
             var sw = new Stopwatch();
             sw.Start();
@@ -139,7 +183,7 @@ namespace Quokka.Extension.Interop
                 Console.WriteLine($"InteropMain called: {string.Join(" ", args)}");
                 return await Invoke(args);
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 TraceException(ex);
                 return 1;
@@ -148,6 +192,12 @@ namespace Quokka.Extension.Interop
             {
                 Console.WriteLine($"InteropMain completed in {sw.ElapsedMilliseconds} ms: {string.Join(" ", args)}");
             }
+        }
+
+        public static async Task<int> Main(string[] args)
+        {
+            var runner = new ExtensionInteropMain();
+            return await runner.Run(args);
         }
     }
 }
